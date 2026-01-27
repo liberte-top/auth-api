@@ -42,13 +42,3 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-
-      - name: Ensure GHCR package is public
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          ORG: ${{ github.repository_owner }}
-          PACKAGE: ${{ github.event.repository.name }}
-        run: |
-          set -euo pipefail
-          gh api --method PATCH /orgs/${ORG}/packages/container/${PACKAGE}/visibility -f visibility=public \
-            || gh api --method PATCH /user/packages/container/${PACKAGE}/visibility -f visibility=public
