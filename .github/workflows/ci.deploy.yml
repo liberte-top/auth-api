@@ -1,0 +1,116 @@
+name: deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub environment name"
+        type: string
+        required: false
+        default: "prod"
+      image_tag:
+        description: "Image tag to deploy"
+        type: string
+        required: false
+        default: "latest"
+
+env:
+  KUBE_DIR: /home/deployer/kubernetes
+  KUBE_NAMESPACE: services
+  KUBE_ADMIN_CONFIG: /home/deployer/.kube/admin.config
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    steps:
+      - name: Checkout kubernetes manifests
+        uses: actions/checkout@v4
+        with:
+          repository: liberte-top/kubernetes
+          path: kubernetes
+
+      - name: Prepare remote kubernetes directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            KUBE_DIR=/home/deployer/kubernetes
+            rm -rf "${KUBE_DIR}"
+            install -d -m 0755 "${KUBE_DIR}"
+
+      - name: Upload kubernetes manifests
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "kubernetes"
+          target: "/home/deployer/kubernetes"
+          overwrite: true
+
+      - name: Apply manifests with image tag
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_USERNAME: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: GHCR_USERNAME,GHCR_TOKEN,REDIS_PASSWORD,IMAGE_TAG
+          script: |
+            set -euo pipefail
+            KUBECTL=/usr/local/bin/kubectl
+            KUBECONFIG=/home/deployer/.kube/admin.config
+            KUBE_DIR=/home/deployer/kubernetes
+            if [ -d "${KUBE_DIR}/kubernetes" ]; then
+              KUBE_DIR="${KUBE_DIR}/kubernetes"
+            fi
+            KUBE_NAMESPACE=services
+            KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
+            KUBE_N="${KUBE} -n ${KUBE_NAMESPACE}"
+
+            AUTH_API_DEPLOY="${KUBE_DIR}/namespaces/services/auth/api/deploy.yaml"
+            AUTH_API_IMAGE="ghcr.io/liberte-top/auth-api:${IMAGE_TAG}"
+
+            sed -i "s|image: ghcr.io/liberte-top/auth-api:.*|image: ${AUTH_API_IMAGE}|" "${AUTH_API_DEPLOY}"
+
+            ${KUBE_N} create secret docker-registry ghcr-pull \
+              --docker-server=ghcr.io \
+              --docker-username="${GHCR_USERNAME}" \
+              --docker-password="${GHCR_TOKEN}" \
+              --dry-run=client -o yaml \
+              | ${KUBE} apply -f -
+            ${KUBE} -n middleware create secret generic redis-auth \
+              --from-literal=REDIS_PASSWORD="${REDIS_PASSWORD}" \
+              --dry-run=client -o yaml \
+              | ${KUBE} apply -f -
+            ${KUBE} -n services create secret generic clash-redis \
+              --from-literal=REDIS_PASSWORD="${REDIS_PASSWORD}" \
+              --dry-run=client -o yaml \
+              | ${KUBE} apply -f -
+            ${KUBE} apply -k ${KUBE_DIR}/bootstrap
+            ${KUBE} diff -k ${KUBE_DIR} || true
+            ${KUBE} apply --dry-run=client -k ${KUBE_DIR}
+            ${KUBE} apply --dry-run=server -k ${KUBE_DIR}
+            ${KUBE} apply -k ${KUBE_DIR}
+
+      - name: E2E check (k8s)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            KUBECTL=/usr/local/bin/kubectl
+            KUBECONFIG=/home/deployer/.kube/admin.config
+            KUBE_NAMESPACE=services
+            KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
+            KUBE_N="${KUBE} -n ${KUBE_NAMESPACE}"
+            ${KUBE_N} rollout status deploy/auth-api --timeout=60s
