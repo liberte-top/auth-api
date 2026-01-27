@@ -33,9 +33,9 @@ jobs:
       - name: Prepare remote kubernetes directory
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           script: |
             KUBE_DIR=/home/deployer/kubernetes
             rm -rf "${KUBE_DIR}"
@@ -44,9 +44,9 @@ jobs:
       - name: Upload kubernetes manifests
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           source: "kubernetes"
           target: "/home/deployer/kubernetes"
           overwrite: true
@@ -55,13 +55,13 @@ jobs:
         uses: appleboy/ssh-action@v1.0.3
         env:
           GHCR_USERNAME: ${{ github.actor }}
-          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
-          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD }}
+          GHCR_TOKEN: ${{ secrets.PROD_GHCR_TOKEN }}
+          REDIS_PASSWORD: ${{ secrets.PROD_REDIS_PASSWORD }}
           IMAGE_TAG: ${{ inputs.image_tag }}
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           envs: GHCR_USERNAME,GHCR_TOKEN,REDIS_PASSWORD,IMAGE_TAG
           script: |
             set -euo pipefail
@@ -103,9 +103,9 @@ jobs:
       - name: E2E check (k8s)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ secrets.PROD_SSH_HOST }}
+          username: ${{ secrets.PROD_SSH_USER }}
+          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
           script: |
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
