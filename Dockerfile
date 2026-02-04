@@ -3,13 +3,15 @@ FROM rust:1.91-bookworm AS builder
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
+RUN cargo fetch
 COPY src ./src
-RUN cargo build --release
+RUN cargo build --release --locked
 
-# Runtime stage
-FROM debian:bookworm-slim
+# Runtime stage (distroless for smaller footprint)
+FROM gcr.io/distroless/cc-debian12
 WORKDIR /app
 COPY --from=builder /app/target/release/auth-api /app/auth-api
 
+USER nonroot:nonroot
 EXPOSE 3333
-CMD ["/app/auth-api"]
+ENTRYPOINT ["/app/auth-api"]
