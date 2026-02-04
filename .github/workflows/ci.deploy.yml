@@ -54,15 +54,10 @@ jobs:
           repository: liberte-top/kubernetes
           path: kubernetes
 
-      - name: Prepare remote kubernetes directory
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -euo pipefail
-            install -d -m 0755 /home/k8s-admin/kubernetes/service/auth/api
+      - name: Pack auth-api manifests
+        run: |
+          set -euo pipefail
+          tar -czf /tmp/auth-api.tgz -C kubernetes/service/auth/api .
 
       - name: Upload auth-api manifests
         uses: appleboy/scp-action@v0.1.7
@@ -70,8 +65,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "kubernetes/service/auth/api/*"
-          target: "/home/k8s-admin/kubernetes/service/auth/api"
+          source: "/tmp/auth-api.tgz"
+          target: "/tmp"
           overwrite: true
 
       - name: Apply manifests
@@ -85,6 +80,8 @@ jobs:
             KUBECTL=/usr/local/bin/kubectl
             KUBECONFIG=/home/k8s-admin/.kube/config
             KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
+            install -d -m 0755 /home/k8s-admin/kubernetes/service/auth/api
+            tar -xzf /tmp/auth-api.tgz -C /home/k8s-admin/kubernetes/service/auth/api
             ${KUBE} apply -k /home/k8s-admin/kubernetes/service/auth/api
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             sudo install -d -m 0755 /var/log/infra
