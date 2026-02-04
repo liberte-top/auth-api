@@ -64,7 +64,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            KUBE_DIR=/home/deployer/kubernetes
+            KUBE_DIR=/home/k8s-admin/kubernetes
             rm -rf "${KUBE_DIR}"
             install -d -m 0755 "${KUBE_DIR}"
 
@@ -91,8 +91,8 @@ jobs:
           script: |
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
-            KUBECONFIG=/home/deployer/.kube/admin.config
-            KUBE_DIR=/home/deployer/kubernetes
+            KUBECONFIG=/home/k8s-admin/.kube/config
+            KUBE_DIR=/home/k8s-admin/kubernetes
             if [ -d "${KUBE_DIR}/kubernetes" ]; then
               KUBE_DIR="${KUBE_DIR}/kubernetes"
             fi
@@ -101,7 +101,8 @@ jobs:
             ${KUBE} apply -k ${KUBE_DIR}
 
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-            echo "${TS} auth-api ${IMAGE_TAG} ${GITHUB_RUN_ID:-unknown}" >> /var/log/infra/auth-deploy.log
+            sudo install -d -m 0755 /var/log/infra
+            echo "${TS} auth-api ${IMAGE_TAG} ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-deploy.log >/dev/null
 
       - name: E2E check (k8s)
         uses: appleboy/ssh-action@v1.0.3
@@ -112,7 +113,7 @@ jobs:
           script: |
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
-            KUBECONFIG=/home/deployer/.kube/admin.config
+            KUBECONFIG=/home/k8s-admin/.kube/config
             KUBE_NAMESPACE=service
             KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
             KUBE_N="${KUBE} -n ${KUBE_NAMESPACE}"
