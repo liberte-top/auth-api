@@ -8,113 +8,27 @@ on:
         type: string
         required: false
         default: "prod"
-      image_tag:
-        description: "Image tag to deploy"
-        type: string
-        required: false
-        default: "latest"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
     steps:
-      - name: Checkout kubernetes manifests
-        uses: actions/checkout@v4
-        with:
-          repository: liberte-top/kubernetes
-          path: kubernetes
-
-      - name: Update kustomization image tag
-        env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          IMAGE_NAME: ghcr.io/liberte-top/auth-api
-        run: |
-          set -euo pipefail
-          KUSTOMIZE_FILE="kubernetes/kustomization.yaml"
-          KUSTOMIZE_FILE="${KUSTOMIZE_FILE}" IMAGE_NAME="${IMAGE_NAME}" IMAGE_TAG="${IMAGE_TAG}" python3 - <<'PY'
-          import os
-          from pathlib import Path
-
-          path = Path(os.environ["KUSTOMIZE_FILE"])
-          image_name = os.environ["IMAGE_NAME"]
-          new_tag = os.environ["IMAGE_TAG"]
-
-          lines = path.read_text().splitlines()
-          out = []
-          hit = False
-          for line in lines:
-              if line.strip() == f"- name: {image_name}":
-                  hit = True
-                  out.append(line)
-                  continue
-              if hit and line.strip().startswith("newTag:"):
-                  indent = line[:len(line) - len(line.lstrip())]
-                  out.append(f"{indent}newTag: {new_tag}")
-                  hit = False
-                  continue
-              out.append(line)
-          path.write_text("\\n".join(out) + "\\n")
-          PY
-
-      - name: Prepare remote kubernetes directory
+      - name: Apply manifests
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            KUBE_DIR=/home/k8s-admin/kubernetes
-            rm -rf "${KUBE_DIR}"
-            install -d -m 0755 "${KUBE_DIR}"
-
-      - name: Upload kubernetes manifests
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "kubernetes"
-          target: "/home/k8s-admin/kubernetes"
-          overwrite: true
-
-      - name: Apply manifests with image tag (dirty write)
-        uses: appleboy/ssh-action@v1.0.3
-        env:
-          IMAGE_TAG: ${{ inputs.image_tag }}
-          IMAGE_NAME: ghcr.io/liberte-top/auth-api
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: IMAGE_TAG,IMAGE_NAME
           script: |
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
             KUBECONFIG=/home/k8s-admin/.kube/config
-            KUBE_DIR=/home/k8s-admin/kubernetes
-            if [ -d "${KUBE_DIR}/kubernetes" ]; then
-              KUBE_DIR="${KUBE_DIR}/kubernetes"
-            fi
             KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
-
-            KUSTOMIZE_FILE="${KUBE_DIR}/kustomization.yaml"
-            KUSTOMIZE_FILE="${KUSTOMIZE_FILE}" python3 - <<'PY'
-            import os
-            from pathlib import Path
-
-            path = Path(os.environ["KUSTOMIZE_FILE"])
-            raw = path.read_text()
-            lines = raw.splitlines()
-            if len(lines) == 1 and "\\n" in raw:
-                path.write_text(raw.replace("\\n", "\n").rstrip("\n") + "\n")
-            PY
-
-            ${KUBE} apply -k ${KUBE_DIR}
-
+            ${KUBE} apply -k /home/k8s-admin/kubernetes/service/auth/api
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             sudo install -d -m 0755 /var/log/infra
-            echo "${TS} auth-api ${IMAGE_TAG} ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-deploy.log >/dev/null
+            echo "${TS} auth-api latest ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-deploy.log >/dev/null
 
       - name: E2E check (k8s)
         uses: appleboy/ssh-action@v1.0.3
