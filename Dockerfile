@@ -1,22 +1,16 @@
 # Build stage
-FROM rust:1.78 AS builder
+FROM maven:3.9.8-eclipse-temurin-21 AS builder
 WORKDIR /app
-
-# Copy manifest and sources (required for target discovery)
-COPY Cargo.toml Cargo.lock* ./
+COPY pom.xml ./
+RUN mvn -q -DskipTests dependency:go-offline
 COPY src ./src
-
-# Build
-RUN cargo fetch
-RUN cargo build --release
+RUN mvn -q -DskipTests package
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
-    && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /app/target/release/auth-api /app/auth-api
+COPY --from=builder /app/target/auth-api-0.1.0.jar /app/auth-api.jar
 
-# No EXPOSE: do not publish ports by default
-CMD ["/app/auth-api"]
+ENV JAVA_OPTS=""
+EXPOSE 3333
+CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/auth-api.jar"]
