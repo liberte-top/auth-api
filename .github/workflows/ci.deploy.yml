@@ -60,9 +60,9 @@ jobs:
       - name: Prepare remote kubernetes directory
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             KUBE_DIR=/home/deployer/kubernetes
             rm -rf "${KUBE_DIR}"
@@ -71,9 +71,9 @@ jobs:
       - name: Upload kubernetes manifests
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "kubernetes"
           target: "/home/deployer/kubernetes"
           overwrite: true
@@ -84,9 +84,9 @@ jobs:
           IMAGE_TAG: ${{ inputs.image_tag }}
           IMAGE_NAME: ghcr.io/liberte-top/auth-api
         with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: IMAGE_TAG,IMAGE_NAME
           script: |
             set -euo pipefail
@@ -106,9 +106,9 @@ jobs:
       - name: E2E check (k8s)
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.PROD_SSH_HOST }}
-          username: ${{ secrets.PROD_SSH_USER }}
-          key: ${{ secrets.PROD_SSH_PRIVATE_KEY }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
