@@ -85,7 +85,7 @@ jobs:
             ${KUBE} apply -k /home/k8s-admin/kubernetes/service/auth/api
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             sudo install -d -m 0755 /var/log/infra
-            echo "${TS} auth-api latest ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-deploy.log >/dev/null
+            echo "${TS} auth-api latest ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-api.deploy.log >/dev/null
 
       - name: E2E check (k8s)
         uses: appleboy/ssh-action@v1.0.3
