@@ -57,7 +57,7 @@ jobs:
       - name: Pack auth-api manifests
         run: |
           set -euo pipefail
-          tar -czf /tmp/auth-api.tgz -C kubernetes/service/auth/api .
+          tar -czf auth-api.tgz -C kubernetes/service/auth/api .
 
       - name: Upload auth-api manifests
         uses: appleboy/scp-action@v0.1.7
@@ -65,7 +65,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "/tmp/auth-api.tgz"
+          source: "auth-api.tgz"
           target: "/tmp"
           overwrite: true
 
