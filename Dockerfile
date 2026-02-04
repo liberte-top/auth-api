@@ -3,8 +3,8 @@ FROM rust:1.91-bookworm AS builder
 WORKDIR /app
 
 COPY Cargo.toml Cargo.lock ./
-RUN cargo fetch
 COPY src ./src
+RUN cargo fetch
 RUN cargo build --release --locked
 
 # Runtime stage (distroless for smaller footprint)
