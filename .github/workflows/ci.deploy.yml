@@ -75,7 +75,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "kubernetes"
-          target: "/home/deployer/kubernetes"
+          target: "/home/k8s-admin/kubernetes"
           overwrite: true
 
       - name: Apply manifests with image tag (dirty write)
