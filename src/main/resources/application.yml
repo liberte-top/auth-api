@@ -1,6 +1,0 @@
-server:
-  port: 3333
-
-spring:
-  application:
-    name: auth-api

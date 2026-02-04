@@ -1,16 +1,20 @@
 # Build stage
-FROM maven:3.9.8-eclipse-temurin-21 AS builder
+FROM rust:1.91-bookworm AS builder
 WORKDIR /app
-COPY pom.xml ./
-RUN mvn -q -DskipTests dependency:go-offline
+
+# Cache dependencies
+COPY Cargo.toml .
+RUN mkdir -p src && echo 'fn main() {}' > src/main.rs
+RUN cargo build --release
+
+# Build actual app
 COPY src ./src
-RUN mvn -q -DskipTests package
+RUN cargo build --release
 
 # Runtime stage
-FROM eclipse-temurin:21-jre-jammy
+FROM debian:bookworm-slim
 WORKDIR /app
-COPY --from=builder /app/target/auth-api-0.1.0.jar /app/auth-api.jar
+COPY --from=builder /app/target/release/auth-api /app/auth-api
 
-ENV JAVA_OPTS=""
 EXPOSE 3333
-CMD ["sh", "-c", "java $JAVA_OPTS -jar /app/auth-api.jar"]
+CMD ["/app/auth-api"]
