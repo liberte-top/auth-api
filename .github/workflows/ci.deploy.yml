@@ -98,6 +98,18 @@ jobs:
             fi
             KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
 
+            KUSTOMIZE_FILE="${KUBE_DIR}/kustomization.yaml"
+            KUSTOMIZE_FILE="${KUSTOMIZE_FILE}" python3 - <<'PY'
+            import os
+            from pathlib import Path
+
+            path = Path(os.environ["KUSTOMIZE_FILE"])
+            raw = path.read_text()
+            lines = raw.splitlines()
+            if len(lines) == 1 and "\\n" in raw:
+                path.write_text(raw.replace("\\n", "\n").rstrip("\n") + "\n")
+            PY
+
             ${KUBE} apply -k ${KUBE_DIR}
 
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
