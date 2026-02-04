@@ -58,8 +58,17 @@ jobs:
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
             KUBECONFIG=/home/k8s-admin/.kube/config
+            KUBE_DIR=/home/k8s-admin/kubernetes
             KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
-            ${KUBE} apply -k /home/k8s-admin/kubernetes/service/auth/api
+            if [ ! -d "${KUBE_DIR}/.git" ]; then
+              rm -rf "${KUBE_DIR}"
+              git clone --depth 1 https://github.com/liberte-top/kubernetes.git "${KUBE_DIR}"
+            else
+              git -C "${KUBE_DIR}" fetch origin main
+              git -C "${KUBE_DIR}" checkout main
+              git -C "${KUBE_DIR}" pull --ff-only
+            fi
+            ${KUBE} apply -k ${KUBE_DIR}/service/auth/api
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             sudo install -d -m 0755 /var/log/infra
             echo "${TS} auth-api latest ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-deploy.log >/dev/null
