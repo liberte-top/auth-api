@@ -2,12 +2,7 @@
 FROM rust:1.91-bookworm AS builder
 WORKDIR /app
 
-# Cache dependencies
-COPY Cargo.toml .
-RUN mkdir -p src && echo 'fn main() {}' > src/main.rs
-RUN cargo build --release
-
-# Build actual app
+COPY Cargo.toml Cargo.lock ./
 COPY src ./src
 RUN cargo build --release
 
