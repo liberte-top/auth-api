@@ -48,16 +48,28 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Compute image tag
+        run: |
+          set -euo pipefail
+          echo "IMAGE_TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
       - name: Checkout kubernetes manifests
         uses: actions/checkout@v4
         with:
           repository: liberte-top/kubernetes
           path: kubernetes
 
-      - name: Pack auth-api manifests
+      - name: Pack auth-api manifests (dirty write sha tag)
         run: |
           set -euo pipefail
-          tar -czf auth-api.tgz -C kubernetes/service/auth/api .
+          WORKDIR=$(mktemp -d)
+          cp -R kubernetes/service/auth/api/. "${WORKDIR}/"
+          cat >> "${WORKDIR}/kustomization.yaml" <<EOF
+          images:
+            - name: ghcr.io/${{ github.repository }}
+              newTag: ${IMAGE_TAG}
+          EOF
+          tar -czf auth-api.tgz -C "${WORKDIR}" .
 
       - name: Upload auth-api manifests
         uses: appleboy/scp-action@v0.1.7
@@ -75,6 +87,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          envs: IMAGE_TAG
           script: |
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
@@ -85,7 +98,7 @@ jobs:
             ${KUBE} apply -k /home/k8s-admin/kubernetes/service/auth/api
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             sudo install -d -m 0755 /var/log/infra
-            echo "${TS} auth-api latest ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-api.deploy.log >/dev/null
+            echo "${TS} auth-api ${IMAGE_TAG} ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-api.deploy.log >/dev/null
 
       - name: E2E check (k8s)
         uses: appleboy/ssh-action@v1.0.3
