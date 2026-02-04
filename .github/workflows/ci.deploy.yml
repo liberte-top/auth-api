@@ -48,6 +48,32 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
+      - name: Checkout kubernetes manifests
+        uses: actions/checkout@v4
+        with:
+          repository: liberte-top/kubernetes
+          path: kubernetes
+
+      - name: Prepare remote kubernetes directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -euo pipefail
+            install -d -m 0755 /home/k8s-admin/kubernetes/service/auth
+
+      - name: Upload auth-api manifests
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "kubernetes/service/auth/api"
+          target: "/home/k8s-admin/kubernetes/service/auth"
+          overwrite: true
+
       - name: Apply manifests
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -58,17 +84,8 @@ jobs:
             set -euo pipefail
             KUBECTL=/usr/local/bin/kubectl
             KUBECONFIG=/home/k8s-admin/.kube/config
-            KUBE_DIR=/home/k8s-admin/kubernetes
             KUBE="${KUBECTL} --kubeconfig ${KUBECONFIG}"
-            if [ ! -d "${KUBE_DIR}/.git" ]; then
-              rm -rf "${KUBE_DIR}"
-              git clone --depth 1 https://github.com/liberte-top/kubernetes.git "${KUBE_DIR}"
-            else
-              git -C "${KUBE_DIR}" fetch origin main
-              git -C "${KUBE_DIR}" checkout main
-              git -C "${KUBE_DIR}" pull --ff-only
-            fi
-            ${KUBE} apply -k ${KUBE_DIR}/service/auth/api
+            ${KUBE} apply -k /home/k8s-admin/kubernetes/service/auth/api
             TS=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             sudo install -d -m 0755 /var/log/infra
             echo "${TS} auth-api latest ${GITHUB_RUN_ID:-unknown}" | sudo tee -a /var/log/infra/auth-deploy.log >/dev/null
