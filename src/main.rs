@@ -16,11 +16,22 @@ async fn health() -> Json<Health> {
 async fn main() {
     let app = Router::new().route("/api/v1/health", get(health));
     let addr = SocketAddr::from(([0, 0, 0, 0], 3333));
-    println!("listening on {}", addr);
 
-    let listener = TcpListener::bind(addr).await.expect("bind failed");
+    eprintln!("starting server on {}", addr);
+    let listener = match TcpListener::bind(addr).await {
+        Ok(listener) => listener,
+        Err(err) => {
+            eprintln!("bind failed: {}", err);
+            std::process::exit(1);
+        }
+    };
+    eprintln!("bound on {}", addr);
+
     if let Err(err) = axum::serve(listener, app).await {
-        eprintln!("server error: {}", err);
+        eprintln!("serve error: {}", err);
         std::process::exit(1);
     }
+
+    eprintln!("serve exited unexpectedly");
+    std::process::exit(1);
 }
