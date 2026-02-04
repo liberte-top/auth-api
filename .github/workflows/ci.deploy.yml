@@ -62,7 +62,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -euo pipefail
-            install -d -m 0755 /home/k8s-admin/kubernetes/service/auth
+            install -d -m 0755 /home/k8s-admin/kubernetes/service/auth/api
 
       - name: Upload auth-api manifests
         uses: appleboy/scp-action@v0.1.7
@@ -70,8 +70,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "kubernetes/service/auth/api"
-          target: "/home/k8s-admin/kubernetes/service/auth"
+          source: "kubernetes/service/auth/api/*"
+          target: "/home/k8s-admin/kubernetes/service/auth/api"
           overwrite: true
 
       - name: Apply manifests
