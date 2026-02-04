@@ -2,12 +2,6 @@ name: deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      environment:
-        description: "GitHub environment name"
-        type: string
-        required: false
-        default: "prod"
 
 permissions:
   contents: read
@@ -16,7 +10,6 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environment }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
