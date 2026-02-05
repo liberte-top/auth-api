@@ -59,7 +59,7 @@ fn redact_db_url(url: &str) -> String {
 fn extract_host_port(url: &str) -> Option<(String, u16)> {
     let after_scheme = url.split("://").nth(1)?;
     let authority = after_scheme.split('/').next().unwrap_or(after_scheme);
-    let hostport = authority.split('@').last().unwrap_or(authority);
+    let hostport = authority.split('@').next_back().unwrap_or(authority);
     let mut parts = hostport.split(':');
     let host = parts.next()?.to_string();
     let port = parts
