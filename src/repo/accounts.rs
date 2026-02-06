@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, DatabaseTransaction, EntityTrait, QueryFilter};
 use uuid::Uuid;
 
 use crate::{entities::accounts, state::DatabaseClient};
@@ -10,7 +10,17 @@ pub trait AccountsRepo: Send + Sync {
         &self,
         model: accounts::ActiveModel,
     ) -> Result<accounts::Model, sea_orm::DbErr>;
+    async fn insert_with_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        model: accounts::ActiveModel,
+    ) -> Result<accounts::Model, sea_orm::DbErr>;
     async fn find_by_uid(&self, uid: Uuid) -> Result<Option<accounts::Model>, sea_orm::DbErr>;
+    async fn find_by_id_with_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        id: i64,
+    ) -> Result<Option<accounts::Model>, sea_orm::DbErr>;
     async fn update(
         &self,
         model: accounts::ActiveModel,
@@ -36,11 +46,30 @@ impl AccountsRepo for SeaOrmAccountsRepo {
         model.insert(self.db.conn()).await
     }
 
+    async fn insert_with_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        model: accounts::ActiveModel,
+    ) -> Result<accounts::Model, sea_orm::DbErr> {
+        model.insert(txn).await
+    }
+
     async fn find_by_uid(&self, uid: Uuid) -> Result<Option<accounts::Model>, sea_orm::DbErr> {
         accounts::Entity::find()
             .filter(accounts::Column::Uid.eq(uid))
             .filter(accounts::Column::DeletedAt.is_null())
             .one(self.db.conn())
+            .await
+    }
+
+    async fn find_by_id_with_txn(
+        &self,
+        txn: &DatabaseTransaction,
+        id: i64,
+    ) -> Result<Option<accounts::Model>, sea_orm::DbErr> {
+        accounts::Entity::find_by_id(id)
+            .filter(accounts::Column::DeletedAt.is_null())
+            .one(txn)
             .await
     }
 

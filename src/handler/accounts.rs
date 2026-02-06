@@ -19,7 +19,7 @@ use crate::{
 #[derive(Deserialize, ToSchema)]
 pub struct CreateAccount {
     pub account_type: String,
-    pub username: String,
+    pub username: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub created_by: Option<Uuid>,
@@ -37,7 +37,7 @@ pub struct UpdateAccount {
 pub struct AccountResponse {
     pub uid: Uuid,
     pub account_type: String,
-    pub username: String,
+    pub username: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub created_at: DateTime<Utc>,

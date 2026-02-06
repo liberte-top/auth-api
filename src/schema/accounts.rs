@@ -29,7 +29,7 @@ pub async fn apply(
                             .string()
                             .not_null(),
                     )
-                    .col(ColumnDef::new(Accounts::Username).string().not_null())
+                    .col(ColumnDef::new(Accounts::Username).string())
                     .col(ColumnDef::new(Accounts::Email).string())
                     .col(ColumnDef::new(Accounts::Phone).string())
                     .col(
@@ -75,7 +75,7 @@ pub async fn apply(
             .execute(Statement::from_string(
                 DbBackend::Postgres,
                 "CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_unique \
-                 ON accounts (lower(username)) WHERE deleted_at IS NULL"
+                 ON accounts (lower(username)) WHERE deleted_at IS NULL AND username IS NOT NULL"
                     .to_string(),
             ))
             .await?;

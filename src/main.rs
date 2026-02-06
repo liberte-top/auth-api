@@ -22,11 +22,13 @@ async fn main() {
     let state = AppState::new().await;
     let _ = state.db().conn();
     let _ = state.accounts_repo();
-    let _ = state.config().config();
+    let _ = state.config().values();
 
     let app = Router::new()
         .merge(handler::health::routes())
         .merge(handler::accounts::routes(state.clone()))
+        .merge(handler::auth::github::routes(state.clone()))
+        .merge(handler::session::routes(state.clone()))
         .merge(SwaggerUi::new("/api/docs").url("/api/openapi.json", ApiDoc::openapi()));
     let addr = SocketAddr::from(([0, 0, 0, 0], state.config().port()));
 
