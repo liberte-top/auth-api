@@ -1,10 +1,7 @@
-use sea_orm::{ConnectionTrait, DbBackend, DatabaseConnection, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 
-pub async fn apply(
-    manager: &SchemaManager<'_>,
-    conn: &DatabaseConnection,
-) -> Result<(), DbErr> {
+pub async fn apply(manager: &SchemaManager<'_>, conn: &DatabaseConnection) -> Result<(), DbErr> {
     if !manager.has_table("account_authorizations").await? {
         manager
             .create_table(
@@ -34,12 +31,10 @@ pub async fn apply(
                             .not_null(),
                     )
                     .col(
-                        ColumnDef::new(AccountAuthorizations::ExpiresAt)
-                            .timestamp_with_time_zone(),
+                        ColumnDef::new(AccountAuthorizations::ExpiresAt).timestamp_with_time_zone(),
                     )
                     .col(
-                        ColumnDef::new(AccountAuthorizations::RevokedAt)
-                            .timestamp_with_time_zone(),
+                        ColumnDef::new(AccountAuthorizations::RevokedAt).timestamp_with_time_zone(),
                     )
                     .col(
                         ColumnDef::new(AccountAuthorizations::CreatedAt)
@@ -54,8 +49,7 @@ pub async fn apply(
                             .default(SimpleExpr::Custom("now()".into())),
                     )
                     .col(
-                        ColumnDef::new(AccountAuthorizations::DeletedAt)
-                            .timestamp_with_time_zone(),
+                        ColumnDef::new(AccountAuthorizations::DeletedAt).timestamp_with_time_zone(),
                     )
                     .col(ColumnDef::new(AccountAuthorizations::CreatedBy).uuid())
                     .col(ColumnDef::new(AccountAuthorizations::UpdatedBy).uuid())
@@ -65,15 +59,31 @@ pub async fn apply(
             )
             .await?;
 
-        conn
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                "CREATE UNIQUE INDEX IF NOT EXISTS account_authorizations_token_hash_unique \
+        conn.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "CREATE UNIQUE INDEX IF NOT EXISTS account_authorizations_token_hash_unique \
                  ON account_authorizations (token_hash)"
-                    .to_string(),
-            ))
-            .await?;
+                .to_string(),
+        ))
+        .await?;
     }
+
+    conn.execute(Statement::from_string(
+        DbBackend::Postgres,
+        "CREATE UNIQUE INDEX IF NOT EXISTS account_authorizations_active_unique \
+             ON account_authorizations (account_id, token_type) \
+             WHERE revoked_at IS NULL AND deleted_at IS NULL"
+            .to_string(),
+    ))
+    .await?;
+
+    conn.execute(Statement::from_string(
+        DbBackend::Postgres,
+        "CREATE INDEX IF NOT EXISTS account_authorizations_type_expires_idx \
+             ON account_authorizations (token_type, expires_at)"
+            .to_string(),
+    ))
+    .await?;
 
     Ok(())
 }

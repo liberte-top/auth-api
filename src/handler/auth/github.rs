@@ -8,10 +8,7 @@ use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use cookie::time::Duration;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    service::accounts::{GetOrCreateByProviderSubjectInput},
-    state::AppState,
-};
+use crate::{service::accounts::GetOrCreateByProviderSubjectInput, state::AppState};
 
 #[derive(Deserialize)]
 pub struct GithubCallbackQuery {
@@ -39,6 +36,7 @@ struct GithubTokenResponse {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct GithubUserResponse {
     id: u64,
     login: String,
@@ -109,7 +107,11 @@ async fn start_github_auth(State(state): State<std::sync::Arc<AppState>>) -> imp
         Err(response) => return response.into_response(),
     };
     let authorize_url = &config.authorize_url;
-    let delimiter = if authorize_url.contains('?') { "&" } else { "?" };
+    let delimiter = if authorize_url.contains('?') {
+        "&"
+    } else {
+        "?"
+    };
     let url = format!(
         "{}{}client_id={}&redirect_uri={}&scope=read:user%20user:email",
         authorize_url,
@@ -188,7 +190,10 @@ async fn github_callback(
 
     let user_response = match client
         .get(format!("{}/user", config.api_base.trim_end_matches('/')))
-        .header("Authorization", format!("Bearer {}", token_response.access_token))
+        .header(
+            "Authorization",
+            format!("Bearer {}", token_response.access_token),
+        )
         .header("User-Agent", "auth-api")
         .send()
         .await
@@ -227,7 +232,11 @@ async fn github_callback(
         created_by: None,
     };
 
-    let account = match state.accounts().get_or_create_by_provider_subject(input).await {
+    let account = match state
+        .accounts()
+        .get_or_create_by_provider_subject(input)
+        .await
+    {
         Ok(model) => model,
         Err(err) => {
             return (

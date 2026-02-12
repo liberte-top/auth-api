@@ -1,12 +1,7 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use crate::state::AppState;
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use axum_extra::extract::cookie::CookieJar;
 use serde::Serialize;
-use crate::state::AppState;
 
 #[derive(Serialize)]
 struct ErrorResponse {
@@ -26,10 +21,7 @@ pub fn routes(state: std::sync::Arc<AppState>) -> axum::Router {
         .with_state(state)
 }
 
-async fn me(
-    State(state): State<std::sync::Arc<AppState>>,
-    jar: CookieJar,
-) -> impl IntoResponse {
+async fn me(State(state): State<std::sync::Arc<AppState>>, jar: CookieJar) -> impl IntoResponse {
     let Some(cookie) = jar.get("sid") else {
         return (
             StatusCode::UNAUTHORIZED,

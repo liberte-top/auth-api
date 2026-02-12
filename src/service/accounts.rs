@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use chrono::Utc;
 use sea_orm::{DatabaseTransaction, TransactionError, TransactionTrait};
 use uuid::Uuid;
 
@@ -43,7 +42,11 @@ pub trait AccountsService: Send + Sync {
         uid: Uuid,
         input: UpdateAccountInput,
     ) -> Result<Option<accounts::Model>, sea_orm::DbErr>;
-    async fn delete(&self, uid: Uuid) -> Result<Option<accounts::Model>, sea_orm::DbErr>;
+    async fn delete(
+        &self,
+        uid: Uuid,
+        deleted_by: Option<Uuid>,
+    ) -> Result<Option<accounts::Model>, sea_orm::DbErr>;
     #[allow(dead_code)]
     async fn get_or_create_by_provider_subject(
         &self,
@@ -75,15 +78,12 @@ impl AccountsServiceImpl {
 #[async_trait]
 impl AccountsService for AccountsServiceImpl {
     async fn create(&self, input: CreateAccountInput) -> Result<accounts::Model, sea_orm::DbErr> {
-        let now = Utc::now();
         let model = accounts::ActiveModel {
             uid: sea_orm::Set(Uuid::new_v4()),
             account_type: sea_orm::Set(input.account_type),
             username: sea_orm::Set(input.username),
             email: sea_orm::Set(input.email),
             phone: sea_orm::Set(input.phone),
-            created_at: sea_orm::Set(now.into()),
-            updated_at: sea_orm::Set(now.into()),
             created_by: sea_orm::Set(input.created_by),
             updated_by: sea_orm::Set(input.created_by),
             ..Default::default()
@@ -105,7 +105,6 @@ impl AccountsService for AccountsServiceImpl {
             return Ok(None);
         };
 
-        let now = Utc::now();
         let mut active: accounts::ActiveModel = model.into();
         if let Some(username) = input.username {
             active.username = sea_orm::Set(Some(username));
@@ -116,22 +115,29 @@ impl AccountsService for AccountsServiceImpl {
         if let Some(phone) = input.phone {
             active.phone = sea_orm::Set(Some(phone));
         }
-        active.updated_at = sea_orm::Set(now.into());
         active.updated_by = sea_orm::Set(input.updated_by);
 
         let updated = self.accounts_repo.update(active).await?;
         Ok(Some(updated))
     }
 
-    async fn delete(&self, uid: Uuid) -> Result<Option<accounts::Model>, sea_orm::DbErr> {
+    async fn delete(
+        &self,
+        uid: Uuid,
+        deleted_by: Option<Uuid>,
+    ) -> Result<Option<accounts::Model>, sea_orm::DbErr> {
         let Some(model) = self.accounts_repo.find_by_uid(uid).await? else {
             return Ok(None);
         };
 
-        let now = Utc::now();
+        let actor = deleted_by
+            .or(model.updated_by)
+            .or(model.created_by)
+            .unwrap_or_else(Uuid::nil);
         let mut active: accounts::ActiveModel = model.into();
-        active.deleted_at = sea_orm::Set(Some(now.into()));
-        active.updated_at = sea_orm::Set(now.into());
+        active.deleted_at = sea_orm::Set(Some(chrono::Utc::now().into()));
+        active.deleted_by = sea_orm::Set(Some(actor));
+        active.updated_by = sea_orm::Set(Some(actor));
 
         let updated = self.accounts_repo.update(active).await?;
         Ok(Some(updated))
@@ -146,21 +152,22 @@ impl AccountsService for AccountsServiceImpl {
         let input = input.clone();
         let conn = self.db.conn();
 
-        let result = conn.transaction::<_, accounts::Model, sea_orm::DbErr>(|txn| {
-            let accounts_repo = accounts_repo.clone();
-            let credentials_repo = credentials_repo.clone();
-            let input = input.clone();
-            Box::pin(async move {
-                get_or_create_by_provider_subject_txn(
-                    txn,
-                    accounts_repo.as_ref(),
-                    credentials_repo.as_ref(),
-                    &input,
-                )
-                .await
+        let result = conn
+            .transaction::<_, accounts::Model, sea_orm::DbErr>(|txn| {
+                let accounts_repo = accounts_repo.clone();
+                let credentials_repo = credentials_repo.clone();
+                let input = input.clone();
+                Box::pin(async move {
+                    get_or_create_by_provider_subject_txn(
+                        txn,
+                        accounts_repo.as_ref(),
+                        credentials_repo.as_ref(),
+                        &input,
+                    )
+                    .await
+                })
             })
-        })
-        .await;
+            .await;
 
         match result {
             Ok(account) => Ok(account),
@@ -193,15 +200,12 @@ async fn get_or_create_by_provider_subject_txn(
         )));
     }
 
-    let now = Utc::now();
     let account_model = accounts::ActiveModel {
         uid: sea_orm::Set(Uuid::new_v4()),
         account_type: sea_orm::Set(input.account_type.clone()),
         username: sea_orm::Set(input.username.clone()),
         email: sea_orm::Set(input.email.clone()),
         phone: sea_orm::Set(None),
-        created_at: sea_orm::Set(now.into()),
-        updated_at: sea_orm::Set(now.into()),
         created_by: sea_orm::Set(input.created_by),
         updated_by: sea_orm::Set(input.created_by),
         ..Default::default()
@@ -215,14 +219,14 @@ async fn get_or_create_by_provider_subject_txn(
         provider_subject: sea_orm::Set(Some(input.provider_subject.clone())),
         password_hash: sea_orm::Set(None),
         metadata: sea_orm::Set(None),
-        created_at: sea_orm::Set(now.into()),
-        updated_at: sea_orm::Set(now.into()),
         created_by: sea_orm::Set(input.created_by),
         updated_by: sea_orm::Set(input.created_by),
         ..Default::default()
     };
 
-    credentials_repo.insert_with_txn(txn, credential_model).await?;
+    credentials_repo
+        .insert_with_txn(txn, credential_model)
+        .await?;
 
     Ok(account)
 }
@@ -231,9 +235,7 @@ async fn get_or_create_by_provider_subject_txn(
 mod tests {
     use super::*;
     use crate::{
-        repo::{
-            account_credentials::SeaOrmAccountCredentialsRepo, accounts::SeaOrmAccountsRepo,
-        },
+        repo::{account_credentials::SeaOrmAccountCredentialsRepo, accounts::SeaOrmAccountsRepo},
         schema,
     };
     use sea_orm::Database;
@@ -251,8 +253,8 @@ mod tests {
 
     #[tokio::test]
     #[ignore]
-    async fn get_or_create_by_provider_subject_uses_transaction() -> Result<(), Box<dyn std::error::Error>>
-    {
+    async fn get_or_create_by_provider_subject_uses_transaction(
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let database_url = match std::env::var("DATABASE_URL") {
             Ok(value) if !value.trim().is_empty() => value,
             _ => return Ok(()),
@@ -263,7 +265,7 @@ mod tests {
 
         let db = Arc::new(TestDatabaseClient { conn });
         let accounts_repo = Arc::new(SeaOrmAccountsRepo::new(db.clone()));
-        let credentials_repo = Arc::new(SeaOrmAccountCredentialsRepo::new());
+        let credentials_repo = Arc::new(SeaOrmAccountCredentialsRepo::new(db.clone()));
         let provider_subject = format!("test-{}", Uuid::new_v4());
         let username = Some(format!("gh_test_{}", Uuid::new_v4().simple()));
         let input = GetOrCreateByProviderSubjectInput {

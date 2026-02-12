@@ -1,6 +1,6 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     routing::{delete, get, patch, post},
     Json, Router,
 };
@@ -159,7 +159,8 @@ pub async fn update_account(
     delete,
     path = "/api/v1/accounts/{uid}",
     params(
-        ("uid" = String, Path, description = "Account uid")
+        ("uid" = String, Path, description = "Account uid"),
+        ("x-actor-id" = Option<String>, Header, description = "Optional actor uid for audit")
     ),
     responses(
         (status = 204, description = "Deleted"),
@@ -168,12 +169,14 @@ pub async fn update_account(
 )]
 pub async fn delete_account(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Path(uid): Path<String>,
 ) -> Result<StatusCode, StatusCode> {
     let uid = Uuid::parse_str(&uid).map_err(|_| StatusCode::BAD_REQUEST)?;
+    let deleted_by = parse_actor_id(&headers).map_err(|_| StatusCode::BAD_REQUEST)?;
     let deleted = state
         .accounts()
-        .delete(uid)
+        .delete(uid, deleted_by)
         .await
         .map_err(|_| StatusCode::BAD_REQUEST)?;
 
@@ -181,6 +184,17 @@ pub async fn delete_account(
         Some(_) => Ok(StatusCode::NO_CONTENT),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+fn parse_actor_id(headers: &HeaderMap) -> Result<Option<Uuid>, ()> {
+    let Some(raw) = headers.get("x-actor-id") else {
+        return Ok(None);
+    };
+    let value = raw.to_str().map_err(|_| ())?;
+    if value.trim().is_empty() {
+        return Ok(None);
+    }
+    Uuid::parse_str(value.trim()).map(Some).map_err(|_| ())
 }
 
 pub fn routes(state: Arc<AppState>) -> Router {

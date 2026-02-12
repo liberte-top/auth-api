@@ -1,10 +1,7 @@
-use sea_orm::{ConnectionTrait, DbBackend, DatabaseConnection, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 
-pub async fn apply(
-    manager: &SchemaManager<'_>,
-    conn: &DatabaseConnection,
-) -> Result<(), DbErr> {
+pub async fn apply(manager: &SchemaManager<'_>, conn: &DatabaseConnection) -> Result<(), DbErr> {
     if !manager.has_table("accounts").await? {
         manager
             .create_table(
@@ -24,11 +21,7 @@ pub async fn apply(
                             .not_null()
                             .default(SimpleExpr::Custom("gen_random_uuid()".into())),
                     )
-                    .col(
-                        ColumnDef::new(Accounts::AccountType)
-                            .string()
-                            .not_null(),
-                    )
+                    .col(ColumnDef::new(Accounts::AccountType).string().not_null())
                     .col(ColumnDef::new(Accounts::Username).string())
                     .col(ColumnDef::new(Accounts::Email).string())
                     .col(ColumnDef::new(Accounts::Phone).string())
@@ -53,33 +46,38 @@ pub async fn apply(
             )
             .await?;
 
-        conn
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                "ALTER TABLE accounts ADD CONSTRAINT accounts_account_type_check \
+        conn.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "ALTER TABLE accounts ADD CONSTRAINT accounts_account_type_check \
                  CHECK (account_type IN ('user','team','robot'))"
-                    .to_string(),
-            ))
-            .await?;
+                .to_string(),
+        ))
+        .await?;
 
-        conn
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                "CREATE UNIQUE INDEX IF NOT EXISTS accounts_uid_unique \
+        conn.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "CREATE UNIQUE INDEX IF NOT EXISTS accounts_uid_unique \
                  ON accounts (uid)"
-                    .to_string(),
-            ))
-            .await?;
+                .to_string(),
+        ))
+        .await?;
 
-        conn
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                "CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_unique \
+        conn.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "CREATE UNIQUE INDEX IF NOT EXISTS accounts_username_unique \
                  ON accounts (lower(username)) WHERE deleted_at IS NULL AND username IS NOT NULL"
-                    .to_string(),
-            ))
-            .await?;
+                .to_string(),
+        ))
+        .await?;
     }
+
+    conn.execute(Statement::from_string(
+        DbBackend::Postgres,
+        "CREATE UNIQUE INDEX IF NOT EXISTS accounts_email_unique \
+             ON accounts (lower(email)) WHERE deleted_at IS NULL AND email IS NOT NULL"
+            .to_string(),
+    ))
+    .await?;
 
     Ok(())
 }

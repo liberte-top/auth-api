@@ -11,8 +11,8 @@ mod handler;
 mod openapi;
 mod repo;
 mod schema;
-mod state;
 mod service;
+mod state;
 
 use openapi::ApiDoc;
 use state::AppState;
@@ -28,6 +28,7 @@ async fn main() {
         .merge(handler::health::routes())
         .merge(handler::accounts::routes(state.clone()))
         .merge(handler::auth::github::routes(state.clone()))
+        .merge(handler::auth::password::routes(state.clone()))
         .merge(handler::session::routes(state.clone()))
         .merge(SwaggerUi::new("/api/docs").url("/api/openapi.json", ApiDoc::openapi()));
     let addr = SocketAddr::from(([0, 0, 0, 0], state.config().port()));
@@ -42,7 +43,5 @@ async fn main() {
     };
     eprintln!("bound on {}", addr);
 
-    axum::serve(listener, app)
-        .await
-        .expect("serve error");
+    axum::serve(listener, app).await.expect("serve error");
 }

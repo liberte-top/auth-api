@@ -1,10 +1,7 @@
-use sea_orm::{ConnectionTrait, DbBackend, DatabaseConnection, Statement};
+use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, Statement};
 use sea_orm_migration::prelude::*;
 
-pub async fn apply(
-    manager: &SchemaManager<'_>,
-    conn: &DatabaseConnection,
-) -> Result<(), DbErr> {
+pub async fn apply(manager: &SchemaManager<'_>, conn: &DatabaseConnection) -> Result<(), DbErr> {
     if !manager.has_table("account_credentials").await? {
         manager
             .create_table(
@@ -52,24 +49,22 @@ pub async fn apply(
             )
             .await?;
 
-        conn
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                "CREATE UNIQUE INDEX IF NOT EXISTS account_credentials_unique_provider \
+        conn.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "CREATE UNIQUE INDEX IF NOT EXISTS account_credentials_unique_provider \
                  ON account_credentials (account_id, provider)"
-                    .to_string(),
-            ))
-            .await?;
+                .to_string(),
+        ))
+        .await?;
 
-        conn
-            .execute(Statement::from_string(
-                DbBackend::Postgres,
-                "CREATE UNIQUE INDEX IF NOT EXISTS account_credentials_unique_subject \
+        conn.execute(Statement::from_string(
+            DbBackend::Postgres,
+            "CREATE UNIQUE INDEX IF NOT EXISTS account_credentials_unique_subject \
                  ON account_credentials (provider, provider_subject) \
                  WHERE provider_subject IS NOT NULL"
-                    .to_string(),
-            ))
-            .await?;
+                .to_string(),
+        ))
+        .await?;
     }
 
     Ok(())

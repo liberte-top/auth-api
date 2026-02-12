@@ -57,7 +57,11 @@ pub struct RedisSessionService {
 }
 
 impl RedisSessionService {
-    pub async fn new(redis_url: &str, ttl_seconds: u64, key_prefix: String) -> Result<Self, SessionError> {
+    pub async fn new(
+        redis_url: &str,
+        ttl_seconds: u64,
+        key_prefix: String,
+    ) -> Result<Self, SessionError> {
         let client = redis::Client::open(redis_url)?;
         let conn = client.get_multiplexed_async_connection().await?;
         Ok(Self {
@@ -84,7 +88,8 @@ impl SessionService for RedisSessionService {
 
         let mut conn = self.conn.lock().await;
         let key = self.key(&session_id);
-        conn.set_ex::<_, _, ()>(key, value, self.ttl_seconds).await?;
+        conn.set_ex::<_, _, ()>(key, value, self.ttl_seconds)
+            .await?;
         Ok(session_id)
     }
 
